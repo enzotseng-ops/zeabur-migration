@@ -9,6 +9,7 @@
 #   目標 URI：$WORKDIR/<name>-dst.url（權限 600，從目標容器內部連，例如
 #            mongodb://root:<url-encoded-pw>@localhost:27017/?authSource=admin）
 #   會用 --drop 覆蓋目標上同名的集合，所以要 CONFIRM_TARGET 等於目標容器名稱。
+#   ALLOW_OVERWRITE=yes  目標上這些庫已經有集合時，預設中止；只有使用者明確同意覆蓋才加。
 #   ALLOW_DIFF_COLLECTIONS="db.coll db.coll2"：這些集合只比名稱與索引數（例如切換前仍有寫入的集合）。
 #
 # 環境變數：WORKDIR（預設 /root/migr）、MONGO_IMAGE（預設 mongo:7.0，主版本要和目標相同）
@@ -31,6 +32,16 @@ trap cleanup EXIT
 
 printf 'uri: "%s"\n' "$(tr -d '\n' < "$WORKDIR/$N-dst.url")" > "$TMPD/r.yml"
 docker cp "$TMPD/r.yml" "$C":/tmp/mm-r.yml || { echo ABORT_RESTORE; exit 1; }
+
+# 防呆：目標上這些庫已經有集合就中止（除非 ALLOW_OVERWRITE=yes）
+printf 'db = connect("%s");\nlet n=0; for (const d of "%s".split(" ").filter(Boolean)) n += db.getSiblingDB(d).getCollectionNames().length; print(n);\n' \
+  "$(tr -d '\n' < "$WORKDIR/$N-dst.url")" "$DBS" > "$TMPD/chk.js"
+docker cp "$TMPD/chk.js" "$C":/tmp/mm-w.js
+existing=$(docker exec "$C" mongosh --nodb --quiet --file /tmp/mm-w.js 2>/dev/null | tail -1)
+echo "target: existing_collections=${existing:-?}"
+if [ "${existing:-1}" != 0 ] && [ "${ALLOW_OVERWRITE:-}" != yes ]; then
+  echo "ABORT: target already has collections in: $DBS. Set ALLOW_OVERWRITE=yes only if the user approved overwriting them."; exit 2
+fi
 
 T0=$(date +%s)
 for DB in $DBS; do

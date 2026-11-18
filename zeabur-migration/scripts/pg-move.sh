@@ -11,6 +11,8 @@
 #   jobs           選填。給數字（例如 4）就用 -Fd 平行 dump/restore（會先 DROP 再 CREATE 目標庫），適合大庫；
 #                  不給就用單檔 -Fc，在單一交易內 --clean 還原
 #   CONFIRM_TARGET 必填，要等於「容器/資料庫」。因為會清空目標庫，用來防止打錯參數。
+#   ALLOW_OVERWRITE=yes  目標庫已經有資料表或有其他連線時，預設中止；只有使用者明確同意覆蓋（例如重跑預演）才加。
+#                        切換完成後不要再對新庫重跑，會清掉已上線的資料。
 #
 # 環境變數：WORKDIR（預設 /root/migr）、PG_IMAGE（預設 postgres:18）。
 #   dump 用 PG_IMAGE 的 pg_dump，還原用目標容器自己的 pg_restore，所以 PG_IMAGE 的主版本
@@ -38,6 +40,16 @@ src=$(docker run --rm -v "$WORKDIR":/m "$IMG" sh -c "psql -tA -d \"\$(cat /m/$N-
 echo "versions: source=$src tool=$tool target=$dst"
 [ "$tool" = "$dst" ] || { echo "ABORT: PG_IMAGE major ($tool) must equal target major ($dst)"; exit 2; }
 [ "$tool" -ge "$src" ] || { echo "ABORT: target major ($dst) is older than source ($src)"; exit 2; }
+
+# 防呆：目標已有資料或有其他連線就中止（除非 ALLOW_OVERWRITE=yes）
+if docker exec "$C" psql -tA -U "$U" -d postgres -c "SELECT 1 FROM pg_database WHERE datname='$DB'" | grep -q 1; then
+  ntab=$(docker exec "$C" psql -tA -U "$U" -d "$DB" -c "SELECT count(*) FROM pg_stat_user_tables")
+  nconn=$(docker exec "$C" psql -tA -U "$U" -d postgres -c "SELECT count(*) FROM pg_stat_activity WHERE datname='$DB' AND pid <> pg_backend_pid()")
+  echo "target: tables=$ntab other_connections=$nconn"
+  if { [ "$ntab" -gt 0 ] || [ "$nconn" -gt 0 ]; } && [ "${ALLOW_OVERWRITE:-}" != yes ]; then
+    echo "ABORT: target $C/$DB already has tables or connections. Set ALLOW_OVERWRITE=yes only if the user approved overwriting it."; exit 2
+  fi
+fi
 
 cp "$HERE/pg-count.sql" "$WORKDIR/pg-count.sql"
 T=$(date +%Y%m%dT%H%M%S); t0=$(date +%s)

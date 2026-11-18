@@ -32,12 +32,12 @@
 ## 哪些經過實戰、哪些是範本
 
 - **以實際用過的腳本為底，加上參數與防呆**：`pg-move.sh`（另加了版本檢查、清理；`pg-count.sql` 多了序號比對）、`mongo-move.sh`、`mongo-count.js`、`webhook-forwarder.Caddyfile`，以及 `references/zeabur-api.md` 裡的環境變數、轉址操作。
-- **改寫後的冒煙測試**（2026-11-19，本機 Docker 測試容器）：`pg-move.sh` 平行模式（版本檢查、`CONFIRM_TARGET` 打錯會中止、搬完筆數一致回 0）、`mongo-move.sh`（含 TTL 集合，筆數一致回 0）、`health-check.sh`。單檔模式用到 GNU 的 `stat -c`、`sha256sum`，只能在 Linux 跑，這次沒測；「筆數不一致回 3」的分支也沒測。
+- **改寫後的冒煙測試**（2026-11-19，本機 Docker 測試容器）：`pg-move.sh` 平行與單檔模式、`mongo-move.sh`（含 TTL 集合）都測過——版本檢查、`CONFIRM_TARGET` 打錯會中止、目標已有資料會中止、加 `ALLOW_OVERWRITE=yes` 才覆蓋、搬完筆數一致回 0；`health-check.sh` 也跑過。「筆數不一致回 3」的分支沒測。
 - **依實際做法改寫成通用版，沒有實跑過**：`zeabur.py`（只測了沒有終端機時會停下）、`daily-backup.sh`。請先在測試環境跑一次。
 - `setAutoRestart`、`suspendService` 這次有用過，但完整參數沒有留下紀錄；查 `autoRestart` 的欄位寫法也沒有紀錄。使用前先用 GraphQL introspection 確認。
 
 ## 注意
 
-- 這些腳本會覆蓋目標資料庫，所以需要 `CONFIRM_TARGET` 才會執行。對正式環境的每一步，都應該由你本人確認。
+- 這些腳本會覆蓋目標資料庫，所以需要 `CONFIRM_TARGET` 才會執行；目標已有資料時還要 `ALLOW_OVERWRITE=yes`。對正式環境的每一步，都應該由你本人確認。
 - 只在 Zeabur → 單台 VPS（Coolify）、PostgreSQL／MongoDB／Redis 的組合驗證過。
 - 本 skill 依現況提供，使用風險自負。

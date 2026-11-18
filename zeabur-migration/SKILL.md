@@ -18,7 +18,8 @@ description: >-
 從 Zeabur 兩台專用主機＋一台辦公室電腦，分八次搬到一台裝了 Coolify 的 VPS，約 37 小時切完，有比對的資料表筆數全部一致。
 
 它適用的範圍就是那次做過的事：**Zeabur → 單台 VPS（Coolify／Docker）**，資料庫是 **PostgreSQL、MongoDB、Redis**。
-MySQL、物件儲存、Zeabur 共享叢集上的 volume 等沒有實測過；遇到時照同樣的原則做，但要明白告訴使用者那部分沒有驗證過。
+MySQL、Zeabur 共享叢集上的 volume 等沒有實測過；遇到時照同樣的原則做，但要明白告訴使用者那部分沒有驗證過。
+**資料不只在資料庫裡**：app 寫在本機磁碟的上傳檔、產生的檔案、volume 也要搬（這次就有 app 的上傳目錄要另外同步）。這部分沒有附腳本，用 rsync 或 `docker cp` 搬，並比對檔案數與總大小。
 
 ## 先講好的規矩（為什麼重要）
 
@@ -37,7 +38,8 @@ MySQL、物件儲存、Zeabur 共享叢集上的 volume 等沒有實測過；遇
 目標是一張完整的清單，漏掉的東西會在切換後變成事故。
 
 - Zeabur：每個專案、服務、網域（含 `*.zeabur.app`）、環境變數的 **key**、資料庫的種類和大小。
-  - 每個服務的 **自動重啟（autoRestart）設定** 也要查。Zeabur 的每日自動重啟會把已暫停的服務拉起來，詳見 `references/lessons.md`。
+  - 每個服務的 **自動重啟（autoRestart）設定** 也要查。Zeabur 的每日自動重啟會把已暫停的服務拉起來，也會讓舊庫上的寫入鎖失效，詳見 `references/lessons.md`。**切換前一天就把要凍結的服務和舊資料庫的 autoRestart 關掉**（要先問使用者）。
+- 每個服務在磁碟上存了哪些檔案（上傳目錄、volume）。
   - 怎麼查見 `references/zeabur-api.md`。
 - 誰會連進來：webhook 呼叫端（LINE、Meta、金流）、OAuth 回呼網址、其他系統直連的資料庫，以及 **預備／staging 環境**。這幾類最容易漏。
 - DNS：網域在哪裡管、TTL、走不走 Cloudflare 代理。
@@ -74,12 +76,14 @@ MySQL、物件儲存、Zeabur 共享叢集上的 volume 等沒有實測過；遇
 
 照手冊做，每一步都記下時間和結果。典型順序：
 
+0. 確認舊服務和舊資料庫的 autoRestart 已經關閉（T-1 就該做完）。
 1. 停寫入，然後確認舊庫寫入量已經不再變動。
-2. 搬庫：PostgreSQL 用 `scripts/pg-move.sh`，MongoDB 用 `scripts/mongo-move.sh`。Redis 的做法見 `references/lessons.md`。
-3. 比對：`scripts/pg-count.sql`、`scripts/mongo-count.js` 要兩邊一致；PostgreSQL 的序號也要一致。
+2. 搬庫：PostgreSQL 用 `scripts/pg-move.sh`，MongoDB 用 `scripts/mongo-move.sh`。Redis 的做法見 `references/lessons.md`。磁碟上的檔案另外同步。
+3. 比對：腳本會自動比對兩邊筆數（PostgreSQL 連序號）。搬完後再重數一次來源，確認舊庫在搬庫期間沒有新寫入。
 4. 新 app 改連新庫並啟動，用直連的方式驗收，例如帶 Host header 打新主機。
-5. 改 DNS，從外部驗收。
+5. 改 DNS；要接 webhook 的 `*.zeabur.app` 網址同時改綁到轉送服務（見下一節）；從外部驗收。
 6. 舊庫維持唯讀或拒絕連線，留著當回滾來源。
+7. 當晚就把新庫加進每日備份並實跑一次，不要等到事後。
 
 ### 5. 舊網址怎麼辦
 
@@ -91,7 +95,7 @@ MySQL、物件儲存、Zeabur 共享叢集上的 volume 等沒有實測過；遇
 
 ### 6. 收尾
 
-- 暫停舊服務時，**同時關掉它的 autoRestart**，也關掉自動部署（例如把 watchPaths 改成不存在的路徑），以免 git push 又部署到舊站。
+- 暫停舊服務前，**再確認一次它的 autoRestart 已關**，也關掉自動部署（例如把 watchPaths 改成不存在的路徑），以免 git push 又部署到舊站。
 - 每日備份：`scripts/daily-backup.sh` 是範本，把 dump 傳到異地（例如 S3／R2），附 sha256，失敗要通知。
 - 至少做一次 **計時的還原演練**：從異地備份還原到另一台機器，記下花了幾分鐘。
 - 健康檢查：`scripts/health-check.sh` 是範本，每小時檢查網址、憑證、磁碟、容器。
@@ -106,5 +110,7 @@ MySQL、物件儲存、Zeabur 共享叢集上的 volume 等沒有實測過；遇
 - `references/runbook-template.md`：每批的手冊範本
 - `references/zeabur-api.md`：本次用過的 Zeabur GraphQL 操作（盤點、改環境變數、轉址、暫停、關自動重啟）
 - `references/lessons.md`：這次踩過的坑，以及 Redis 的做法
-- `scripts/zeabur.py` 的寫入指令會要求確認；在沒有終端機的環境（例如你自己執行指令時）會直接停下。先在對話裡取得使用者同意，再加上 `ZEABUR_YES=1` 執行。
+- `scripts/zeabur.py` 是依實際做法改寫的通用版，**沒有對真實 Zeabur 帳號實跑過**，先用唯讀指令（`keys`、`domains`）確認能動。它的寫入指令會要求確認；在沒有終端機的環境（例如你自己執行指令時）會直接停下。先在對話裡取得使用者同意，再加上 `ZEABUR_YES=1` 執行。
+- 搬庫腳本預設**拒絕覆蓋已經有資料的目標**。只有在使用者明確同意覆蓋（例如重跑預演）時，才加上 `ALLOW_OVERWRITE=yes`。切換完成後絕對不要再對新庫重跑，那會清掉已上線的資料。
+- `pg-move.sh` 的來源連線字串會出現在 dump 容器的程序參數裡（同一台主機的其他使用者可用 `ps` 看到）。新主機只給自己用時影響不大；共用主機請改用 `PGPASSFILE`。
 - `scripts/`：搬庫、比對、轉送、備份、健康檢查的腳本。每支檔頭都寫了用法和需要的環境變數。`.sh` 腳本是給 Linux 新主機以 root 執行的；`zeabur.py` 可在任何有 Python 3 的電腦上跑。
