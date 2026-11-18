@@ -40,4 +40,4 @@
 
 - 這些腳本會覆蓋目標資料庫，所以需要 `CONFIRM_TARGET` 才會執行；目標已有資料時還要 `ALLOW_OVERWRITE=yes`。對正式環境的每一步，都應該由你本人確認。
 - 只在 Zeabur → 單台 VPS（Coolify）、PostgreSQL／MongoDB／Redis 的組合驗證過。
-- 本 skill 依現況提供，使用風險自負。
+- 授權：MIT（見 `LICENSE`），可自由使用、修改、再散布；依現況提供，使用風險自負。
