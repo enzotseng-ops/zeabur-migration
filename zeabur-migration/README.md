@@ -7,10 +7,10 @@
 
 ## 安裝
 
-下載 `zeabur-migration.zip`（見 GitHub Releases），解壓到：
+下載 `zeabur-migration.zip`（見 GitHub Releases）。zip 裡已經包含 `zeabur-migration/` 資料夾，解壓到 skills 目錄即可：
 
-- Claude Code：`~/.claude/skills/zeabur-migration/`
-- 專案內使用：`<你的專案>/.claude/skills/zeabur-migration/`
+- Claude Code：`cd ~/.claude/skills && unzip zeabur-migration.zip`（結果是 `~/.claude/skills/zeabur-migration/SKILL.md`）
+- 專案內使用：解壓到 `<你的專案>/.claude/skills/`
 
 然後跟 Claude 說「我想把 Zeabur 上的服務搬到自己的主機」，它就會照這份 skill 的流程進行。
 
@@ -32,7 +32,8 @@
 ## 哪些經過實戰、哪些是範本
 
 - **以實際用過的腳本為底，加上參數與防呆**：`pg-move.sh`（另加了版本檢查、清理；`pg-count.sql` 多了序號比對）、`mongo-move.sh`、`mongo-count.js`、`webhook-forwarder.Caddyfile`，以及 `references/zeabur-api.md` 裡的環境變數、轉址操作。
-- **依實際做法改寫成通用版，沒有在別的環境實跑過**：`zeabur.py`、`daily-backup.sh`、`health-check.sh`；上一項的腳本改寫後也沒有再實跑。請先在測試環境跑一次。
+- **改寫後的冒煙測試**（2026-11-19，本機 Docker 測試容器）：`pg-move.sh` 平行模式（版本檢查、`CONFIRM_TARGET` 打錯會中止、搬完筆數一致回 0）、`mongo-move.sh`（含 TTL 集合，筆數一致回 0）、`health-check.sh`。單檔模式用到 GNU 的 `stat -c`、`sha256sum`，只能在 Linux 跑，這次沒測；「筆數不一致回 3」的分支也沒測。
+- **依實際做法改寫成通用版，沒有實跑過**：`zeabur.py`（只測了沒有終端機時會停下）、`daily-backup.sh`。請先在測試環境跑一次。
 - `setAutoRestart`、`suspendService` 這次有用過，但完整參數沒有留下紀錄；查 `autoRestart` 的欄位寫法也沒有紀錄。使用前先用 GraphQL introspection 確認。
 
 ## 注意

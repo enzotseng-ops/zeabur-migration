@@ -44,7 +44,11 @@ def gql(query):
 def confirm(what):
     if os.environ.get('ZEABUR_YES') == '1':
         return
-    with open('/dev/tty') as tty:
+    try:
+        tty = open('/dev/tty')
+    except OSError:
+        sys.exit(f'{what}\n沒有終端機可以確認。請先取得使用者同意，再加上 ZEABUR_YES=1 執行。')
+    with tty:
         print(f'{what}\n輸入 yes 繼續：', end='', flush=True)
         ans = tty.readline().strip()
     if ans != 'yes':

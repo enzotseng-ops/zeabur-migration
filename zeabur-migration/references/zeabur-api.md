@@ -8,7 +8,7 @@
 - 驗證：`Authorization: Bearer <token>`。token 在 Zeabur 後台的帳號設定中建立。
 - token 放在權限 600 的檔案或環境變數 `ZEABUR_TOKEN`，不要寫進程式或 log。
 
-`scripts/zeabur.py` 是一支小工具，包好了下面這些操作，只印 key 和狀態。
+`scripts/zeabur.py` 是一支小工具，包好了查 key／網域／自動重啟、改環境變數、重啟、302 轉址這幾項，只印 key 和狀態；暫停服務、關自動重啟、關自動部署請照下面的寫法自己送。
 
 ## 盤點（唯讀）
 
