@@ -11,7 +11,7 @@
 - `fb_reply.py`：核心巡邏與回覆邏輯。
 - `fb_post.py`：底層 Facebook API 串接工具，支援發文與讀取。
 - `requirements.txt`：Python 依賴套件清單。
-- `fb_reply_history.json`：儲存已回覆留言的紀錄。
+- `fb_reply_history.json`：已回覆留言的紀錄，第一次執行時在本機自動建立，已列入 `.gitignore`，不會上傳。
 
 ## 🚀 使用方式
 
@@ -25,6 +25,9 @@ pip install -r requirements.txt
 - `FB_ACCESS_TOKEN`：您的 Facebook Page Access Token。
 - `FB_PAGE_ID`：您的粉絲專頁 ID。
 - `FB_APP_ID`：您的 Facebook App ID。
+- `MCP_API_KEY`：（選用）MCP 服務的 API Key。
+- `FB_LOG_FILE`：（選用）互動紀錄檔路徑，預設為本資料夾的 `fb_interactions_log.jsonl`。
+- `FB_QA_LIBRARY`：（選用）問答庫檔案路徑，預設為本資料夾的 `qa_library.md`。
 
 ### 3. 執行巡邏
 ```bash
