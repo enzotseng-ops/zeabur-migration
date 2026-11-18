@@ -1,0 +1,12 @@
+# 在 Zeabur 上留一個小服務（Caddy），把舊的 *.zeabur.app 網址綁到它，
+# 收到的請求原樣（含 POST body、標頭）轉到新主機。用在 webhook、OAuth 回呼這類不能用 302 的網址。
+#
+# 部署：Zeabur 新增一個 Docker 服務，映像 caddy:2，把這個檔放在 /etc/caddy/Caddyfile，
+# 然後把舊網域（例如 myapp.zeabur.app）從舊服務移除、改綁到這個服務。
+# 等所有呼叫端都改成新網址，再刪掉這個服務。
+:8080 {
+	reverse_proxy https://NEW_HOSTNAME.example.com {
+		header_up Host {upstream_hostport}
+		header_up Forwarded "host={http.request.host};proto=https"
+	}
+}
